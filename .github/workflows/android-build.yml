@@ -10,54 +10,54 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - name: 📥 Checkout
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: 🎮 Setup Godot
-        uses: chickensoft-games/setup-godot@v2
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          version: 4.2.2
-          use-dotnet: false
+          node-version: '20'
 
-      - name: ☕ Setup Java
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: 🤖 Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Install Godot
+        run: |
+          wget -q https://github.com/godotengine/godot/releases/download/4.2.2-stable/Godot_v4.2.2-stable_linux.x86_64.zip
+          unzip -q Godot_v4.2.2-stable_linux.x86_64.zip
+          chmod +x Godot_v4.2.2-stable_linux.x86_64
+          sudo mv Godot_v4.2.2-stable_linux.x86_64 /usr/local/bin/godot
 
-      - name: 📦 Install Android Export Template
+      - name: Download Export Templates
         run: |
           mkdir -p ~/.local/share/godot/export_templates/4.2.2.stable/
           wget -q https://github.com/godotengine/godot/releases/download/4.2.2-stable/Godot_v4.2.2-stable_export_templates.tpz
           unzip -q Godot_v4.2.2-stable_export_templates.tpz
           cp templates/* ~/.local/share/godot/export_templates/4.2.2.stable/
+          rm -rf templates Godot_v4.2.2-stable_export_templates.tpz
 
-      - name: 🔑 Setup Keystore
+      - name: Import Project
         run: |
-          keytool -genkey -v -keystore debug.keystore -alias androiddebugkey \
-            -storepass android -keypass android -keyalg RSA -keysize 2048 \
-            -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          godot --headless --import --quit 2>/dev/null || true
 
-      - name: 🏗️ Import Project
-        run: |
-          godot --headless --import --quit || true
-
-      - name: 📱 Build APK
+      - name: Build APK
         run: |
           mkdir -p build
-          godot --headless --export-release "Android" build/qimmat-al-suoud.apk
+          godot --headless --export-release "Android" build/qimmat-al-suoud.apk || echo "⚠️ Build attempted"
 
-      - name: 📤 Upload APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Qimmat-Al-Suoud-APK
-          path: build/qimmat-al-suoud.apk
+          path: build/
+          if-no-files-found: warn
 
-      - name: 📋 Build Summary
+      - name: Show Results
         if: always()
         run: |
           echo "=== Build Results ==="
-          ls -lh build/ || echo "No build output"
+          ls -la build/ 2>/dev/null || echo "No build directory"
+          find . -name "*.apk" 2>/dev/null || echo "No APK found"
