@@ -10,54 +10,117 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Checkout
+      - name: 📥 Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+      - name: 🔍 List Project Files
+        run: |
+          echo "=== ملفات المشروع ==="
+          find . -maxdepth 2 -type f | head -30
+          echo ""
+          if [ -f "project.godot" ]; then
+            echo "✅ project.godot موجود"
+          else
+            echo "❌ project.godot غير موجود!"
+          fi
+          if [ -f "export_presets.cfg" ]; then
+            echo "✅ export_presets.cfg موجود"
+          else
+            echo "❌ export_presets.cfg غير موجود!"
+          fi
 
-      - name: Setup Java
+      - name: ☕ Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Install Godot
+      - name: 🤖 Setup Android SDK
+        run: |
+          echo "y" | sudo ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platforms;android-34" > /dev/null 2>&1
+          echo "y" | sudo ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "build-tools;34.0.0" > /dev/null 2>&1
+          echo "✅ Android SDK جاهز"
+
+      - name: 🎮 Install Godot
         run: |
           wget -q https://github.com/godotengine/godot/releases/download/4.2.2-stable/Godot_v4.2.2-stable_linux.x86_64.zip
           unzip -q Godot_v4.2.2-stable_linux.x86_64.zip
           chmod +x Godot_v4.2.2-stable_linux.x86_64
           sudo mv Godot_v4.2.2-stable_linux.x86_64 /usr/local/bin/godot
+          godot --version
+          echo "✅ Godot مثبت"
 
-      - name: Download Export Templates
+      - name: 📦 Download Export Templates
         run: |
           mkdir -p ~/.local/share/godot/export_templates/4.2.2.stable/
           wget -q https://github.com/godotengine/godot/releases/download/4.2.2-stable/Godot_v4.2.2-stable_export_templates.tpz
           unzip -q Godot_v4.2.2-stable_export_templates.tpz
           cp templates/* ~/.local/share/godot/export_templates/4.2.2.stable/
           rm -rf templates Godot_v4.2.2-stable_export_templates.tpz
+          echo "✅ قوالب التصدير جاهزة"
+          ls ~/.local/share/godot/export_templates/4.2.2.stable/ | head -5
 
-      - name: Import Project
+      - name: 🔑 Generate Debug Keystore
         run: |
-          godot --headless --import --quit 2>/dev/null || true
+          keytool -genkey -v -keystore ~/.android/debug.keystore -alias androiddebugkey \
+            -storepass android -keypass android -keyalg RSA -keysize 2048 \
+            -validity 10000 -dname "CN=Android Debug,O=Android,C=US" 2>/dev/null
+          echo "✅ Keystore جاهز"
 
-      - name: Build APK
+      - name: 📥 Import Godot Project
         run: |
+          echo "=== استيراد المشروع ==="
+          timeout 120 godot --headless --import --quit 2>&1 || true
+          echo "✅ تم الاستيراد"
+
+      - name: 🏗️ Build APK
+        run: |
+          echo "=== بدء بناء APK ==="
           mkdir -p build
-          godot --headless --export-release "Android" build/qimmat-al-suoud.apk || echo "⚠️ Build attempted"
+          
+          # محاولة البناء مع إظهار الأخطاء
+          godot --headless --export-release "Android" build/qimmat-al-suoud.apk 2>&1
+          BUILD_EXIT=$?
+          
+          echo ""
+          echo "=== نتيجة البناء ==="
+          echo "رمز الخروج: $BUILD_EXIT"
+          
+          if [ $BUILD_EXIT -eq 0 ]; then
+            echo "✅ البناء نجح!"
+          else
+            echo "❌ البناء فشل برمز: $BUILD_EXIT"
+          fi
+          
+          ls -la build/ 2>/dev/null || echo "مجلد build فارغ"
 
-      - name: Upload APK
+      - name: 📤 Upload APK
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Qimmat-Al-Suoud-APK
-          path: build/
+          path: |
+            build/*.apk
+            build/*.aab
           if-no-files-found: warn
 
-      - name: Show Results
+      - name: 📋 Final Summary
         if: always()
         run: |
-          echo "=== Build Results ==="
-          ls -la build/ 2>/dev/null || echo "No build directory"
-          find . -name "*.apk" 2>/dev/null || echo "No APK found"
+          echo ""
+          echo "╔══════════════════════════════════╗"
+          echo "║     ملخص عملية البناء          ║"
+          echo "╠══════════════════════════════════╣"
+          
+          if [ -f "build/qimmat-al-suoud.apk" ]; then
+            SIZE=$(du -h build/qimmat-al-suoud.apk | cut -f1)
+            echo "║ ✅ APK تم بناؤه بنجاح!          ║"
+            echo "║ 📦 الحجم: $SIZE                  ║"
+          else
+            echo "║ ❌ لم يتم إنشاء APK             ║"
+            echo "║ تحقق من رسائل الخطأ أعلاه      ║"
+          fi
+          
+          echo "╚══════════════════════════════════╝"
+          
+          find . -name "*.apk" -o -name "*.aab" 2>/dev/null | head -5
