@@ -1,57 +1,47 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=6 format=3]
 
-[ext_resource type="Script" path="res://scripts/game_manager.gd" id="1"]
-[ext_resource type="Script" path="res://scripts/vehicle_controller.gd" id="2"]
-[ext_resource type="Script" path="res://scripts/camera_follow.gd" id="3"]
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_1"]
+[sub_resource type="BoxMesh" id="1"]
 size = Vector3(2, 1, 4)
 
-[node name="Main" type="Node3D"]
-script = ExtResource("1")
+[sub_resource type="BoxShape3D" id="2"]
+size = Vector3(2, 1, 4)
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
-environment = SubResource("Environment_1")
+[sub_resource type="PlaneMesh" id="3"]
+size = Vector2(50, 50)
+
+[sub_resource type="StandardMaterial3D" id="4"]
+albedo_color = Color(0.9, 0.1, 0.1, 1)
+
+[sub_resource type="StandardMaterial3D" id="5"]
+albedo_color = Color(0.5, 0.4, 0.3, 1)
+
+[node name="Main" type="Node3D"]
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 20, 10)
+transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 10, 5)
 shadow_enabled = true
-light_energy = 1.2
 
-[node name="Terrain" type="StaticBody3D" parent="."]
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.939693, 0.34202, 0, -0.34202, 0.939693, 0, 5, 10)
+current = true
 
-[node name="Vehicle" type="Node3D" parent="."]
+[node name="Ground" type="StaticBody3D" parent="."]
+
+[node name="GroundMesh" type="MeshInstance3D" parent="Ground"]
+mesh = SubResource("3")
+surface_material_override/0 = SubResource("5")
+
+[node name="GroundCollision" type="CollisionShape3D" parent="Ground"]
+shape = SubResource("2")
+transform = Transform3D(25, 0, 0, 0, 0.01, 0, 0, 0, 25, 0, -0.5, 0)
+
+[node name="Car" type="RigidBody3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)
-script = ExtResource("2")
+mass = 500.0
 
-[node name="Chassis" type="RigidBody3D" parent="Vehicle"]
-mass = 1000.0
+[node name="CarMesh" type="MeshInstance3D" parent="Car"]
+mesh = SubResource("1")
+surface_material_override/0 = SubResource("4")
 
-[node name="BodyMesh" type="MeshInstance3D" parent="Vehicle/Chassis"]
-mesh = SubResource("BoxMesh_1")
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Vehicle/Chassis"]
-shape = SubResource("BoxShape3D_1")
-
-[node name="WheelFL" type="Node3D" parent="Vehicle"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, -0.5, 1.5)
-
-[node name="WheelFR" type="Node3D" parent="Vehicle"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, -0.5, 1.5)
-
-[node name="WheelRL" type="Node3D" parent="Vehicle"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, -0.5, -1.5)
-
-[node name="WheelRR" type="Node3D" parent="Vehicle"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, -0.5, -1.5)
-
-[node name="CameraRig" type="Node3D" parent="."]
-script = ExtResource("3")
-target = NodePath("../Vehicle")
-
-[node name="Camera3D" type="Camera3D" parent="CameraRig"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 8)
-
-[node name="HUD" type="CanvasLayer" parent="."]
-
-[node name="TouchControls" type="CanvasLayer" parent="."]
+[node name="CarCollision" type="CollisionShape3D" parent="Car"]
+shape = SubResource("2")
