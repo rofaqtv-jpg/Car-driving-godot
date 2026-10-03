@@ -1,18 +1,103 @@
-name: Emergency Build
+name: Build APK
 
-on: workflow_dispatch
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Create Dummy APK
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Step 1 - Verify Files
         run: |
-          mkdir -p build
-          echo "test" > build/qimmat-al-suoud.apk
+          echo "========== الملفات =========="
+          ls -la
+          echo ""
+          cat project.godot || echo "❌ project.godot مفقود"
+          echo ""
+          cat export_presets.cfg || echo "❌ export_presets.cfg مفقود"
+          echo ""
+          cat main.tscn | head -5 || echo "❌ main.tscn مفقود"
+
+      - name: Step 2 - Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Step 3 - Android SDK
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls $ANDROID_HOME/ 2>/dev/null || echo "❌ ANDROID_HOME غير موجود"
           
-      - name: Upload
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platforms;android-34" > /dev/null 2>&1
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "build-tools;34.0.0" > /dev/null 2>&1
+          echo "✅ SDK جاهز"
+
+      - name: Step 4 - Godot
+        run: |
+          echo "تحميل Godot..."
+          wget -q https://github.com/godotengine/godot/releases/download/4.2.2-stable/Godot_v4.2.2-stable_linux.x86_64.zip
+          ls -la Godot_v4.2.2-stable_linux.x86_64.zip
+          unzip -q Godot_v4.2.2-stable_linux.x86_64.zip
+          chmod +x Godot_v4.2.2-stable_linux.x86_64
+          sudo mv Godot_v4.2.2-stable_linux.x86_64 /usr/local/bin/godot
+          godot --version
+          echo "✅ Godot جاهز"
+
+      - name: Step 5 - Templates
+        run: |
+          echo "تحميل القوالب..."
+          mkdir -p ~/.local/share/godot/export_templates/4.2.2.stable/
+          wget -q https://github.com/godotengine/godot/releases/download/4.2.2-stable/Godot_v4.2.2-stable_export_templates.tpz
+          ls -la Godot_v4.2.2-stable_export_templates.tpz
+          unzip -q Godot_v4.2.2-stable_export_templates.tpz
+          cp templates/* ~/.local/share/godot/export_templates/4.2.2.stable/
+          rm -rf templates Godot_v4.2.2-stable_export_templates.tpz
+          echo "القوالب المثبتة:"
+          ls ~/.local/share/godot/export_templates/4.2.2.stable/ | head -5
+          echo "✅ القوالب جاهزة"
+
+      - name: Step 6 - Keystore
+        run: |
+          mkdir -p ~/.android
+          keytool -genkey -v \
+            -keystore ~/.android/debug.keystore \
+            -alias androiddebugkey \
+            -storepass android \
+            -keypass android \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+          echo "✅ Keystore جاهز"
+          ls -la ~/.android/debug.keystore
+
+      - name: Step 7 - Import
+        run: |
+          echo "=== استيراد المشروع ==="
+          godot --headless --import --quit 2>&1
+          echo "رمز الخروج: $?"
+
+      - name: Step 8 - Build
+        run: |
+          echo "=== بناء APK ==="
+          mkdir -p build
+          godot --headless --export-release "Android" build/qimmat-al-suoud.apk 2>&1
+          echo "رمز الخروج: $?"
+          echo ""
+          echo "=== محتويات build/ ==="
+          ls -la build/ 2>/dev/null || echo "مجلد فارغ"
+
+      - name: Step 9 - Upload
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Qimmat-Al-Suoud-APK
-          path: build/*.apk
+          path: build/
+          if-no-files-found: warn
